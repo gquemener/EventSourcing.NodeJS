@@ -1,5 +1,5 @@
 import {ProductItem, ShoppingCart, ShoppingCartErrors, ShoppingCartStatus} from "./entity";
-import {ProductItemAddedToShoppingCart, ProductItemRemovedFromShoppingCart, ShoppingCartEvent, ShoppingCartOpened} from "./events";
+import {ProductItemAddedToShoppingCart, ProductItemRemovedFromShoppingCart, ShoppingCartConfirmed, ShoppingCartEvent, ShoppingCartOpened} from "./events";
 
 type ApplyEvent<Entity, Event> = (
     currentState: Entity | undefined,
@@ -73,6 +73,11 @@ const findProductItem = (
     return productItems.find((pi) => pi.productId === id);
 }
 
+const guardCurrentStatusIs = (currentStatus: ShoppingCartStatus, status: ShoppingCartStatus): void => {
+    if (currentStatus !== status)
+        throw ShoppingCartErrors.INVALID_SHOPPING_CART_STATUS;
+}
+
 const getShoppingCart = StreamAggregator<ShoppingCart, ShoppingCartEvent>(
     (currentState, event) => {
         if (event.type == 'shopping-cart-opened') {
@@ -95,6 +100,7 @@ const getShoppingCart = StreamAggregator<ShoppingCart, ShoppingCartEvent>(
 
         switch (event.type) {
             case 'product-item-added-to-shopping-cart':
+                guardCurrentStatusIs(currentState.status, ShoppingCartStatus.Opened);
                 return {
                     ...currentState,
                     productItems: addProductItem(
@@ -104,6 +110,7 @@ const getShoppingCart = StreamAggregator<ShoppingCart, ShoppingCartEvent>(
                 };
 
             case 'product-item-removed-from-shopping-cart':
+                guardCurrentStatusIs(currentState.status, ShoppingCartStatus.Opened);
                 return {
                     ...currentState,
                     productItems: removeProductItem(
@@ -111,6 +118,15 @@ const getShoppingCart = StreamAggregator<ShoppingCart, ShoppingCartEvent>(
                         event.data.productItem
                     )
                 };
+
+            case 'shopping-cart-confirmed':
+                guardCurrentStatusIs(currentState.status, ShoppingCartStatus.Opened);
+                return {
+                    ...currentState,
+                    status: ShoppingCartStatus.Confirmed,
+                    confirmedAt: new Date(event.data.confirmedAt)
+                };
+
             default:
                 throw ShoppingCartErrors.UNKNOWN_EVENT_TYPE;
         }
@@ -152,7 +168,13 @@ const history: ShoppingCartEvent[] = [
                 quantity: 2
             }
         }
-    }
+    },
+    <ShoppingCartConfirmed>{
+        type: 'shopping-cart-confirmed',
+        data: {
+            confirmedAt: new Date()
+        }
+    },
 ];
 const cart = getShoppingCart(history);
 console.log(cart);
