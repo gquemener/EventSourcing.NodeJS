@@ -90,7 +90,7 @@ const getShoppingCart = StreamAggregator<ShoppingCart, ShoppingCartEvent>(
                 clientId: event.data.clientId,
                 status: ShoppingCartStatus.Opened,
                 productItems: [],
-                openedAt: event.data.openedAt,
+                openedAt: new Date(event.data.openedAt),
             };
         }
 
