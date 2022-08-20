@@ -1,6 +1,7 @@
 import {ProductItemAddedToShoppingCart, ProductItemRemovedFromShoppingCart, ShoppingCartConfirmed, ShoppingCartEvent, ShoppingCartOpened} from "./events";
 import {appendShoppingCartEvents, getShoppingCart} from "./repository";
 import {v4 as uuid} from 'uuid';
+import {EventStoreDBClient} from "@eventstore/db-client";
 
 const enum ProductIds {
     T_SHIRT = 't-shirt-123',
@@ -69,9 +70,13 @@ const enum ProductIds {
         },
     ];
 
-    await appendShoppingCartEvents(shoppingCartId, history);
+    const eventStore = EventStoreDBClient.connectionString(
+        'esdb://eventstore:2113?tls=false'
+    );
 
-    const cart = await getShoppingCart(shoppingCartId);
+    await appendShoppingCartEvents(eventStore)(shoppingCartId, history);
+
+    const cart = await getShoppingCart(eventStore)(shoppingCartId);
 
     console.log(cart);
 })();

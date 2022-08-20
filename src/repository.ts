@@ -137,24 +137,18 @@ const shoppingCartStreamAggregator = StreamAggregator<ShoppingCart, ShoppingCart
 
 const toShoppingCartStreamName = (shoppingCartId: string) => `shopping_cart-${shoppingCartId}`;
 
-export const getShoppingCart = (shoppingCartId: string) => {
-    const eventStore = EventStoreDBClient.connectionString(
-        'esdb://eventstore:2113?tls=false'
-    );
+export const getShoppingCart = (eventStore: EventStoreDBClient) =>
+    (shoppingCartId: string) => {
+        const streamName = toShoppingCartStreamName(shoppingCartId);
 
-    const streamName = toShoppingCartStreamName(shoppingCartId);
+        return shoppingCartStreamAggregator(
+            eventStore.readStream<ShoppingCartEvent>(streamName)
+        );
+    };
 
-    return shoppingCartStreamAggregator(
-        eventStore.readStream<ShoppingCartEvent>(streamName)
-    );
-};
+export const appendShoppingCartEvents = (eventStore: EventStoreDBClient) =>
+    async (shoppingCartId: string, events: ShoppingCartEvent[]) => {
+        const streamName = toShoppingCartStreamName(shoppingCartId);
 
-export const appendShoppingCartEvents = async (shoppingCartId: string, events: ShoppingCartEvent[]) => {
-    const eventStore = EventStoreDBClient.connectionString(
-        'esdb://eventstore:2113?tls=false'
-    );
-
-    const streamName = toShoppingCartStreamName(shoppingCartId);
-
-    await eventStore.appendToStream(streamName, events.map((e) => jsonEvent<ShoppingCartEvent>(e)));
-};
+        await eventStore.appendToStream(streamName, events.map((e) => jsonEvent<ShoppingCartEvent>(e)));
+    };
