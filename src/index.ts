@@ -1,9 +1,11 @@
+import {EventType, RecordedEvent, ResolvedEvent, StreamingRead, EventStoreDBClient, jsonEvent} from "@eventstore/db-client";
 import {ProductItem, ShoppingCart, ShoppingCartErrors, ShoppingCartStatus} from "./entity";
 import {ProductItemAddedToShoppingCart, ProductItemRemovedFromShoppingCart, ShoppingCartConfirmed, ShoppingCartEvent, ShoppingCartOpened} from "./events";
+import { v4 as uuid } from 'uuid';
 
-type ApplyEvent<Entity, Event> = (
+type ApplyEvent<Entity, E extends EventType> = (
     currentState: Entity | undefined,
-    event: Event
+    event: RecordedEvent<E>
 ) => Entity;
 
 enum StreamAggregatorErrors {
@@ -11,10 +13,12 @@ enum StreamAggregatorErrors {
 };
 
 const StreamAggregator =
-    <Entity, Event>(when: ApplyEvent<Entity, Event>) =>
-    (events: Event[]): Entity => {
+    <Entity, E extends EventType>(when: ApplyEvent<Entity, E>) =>
+    async (eventStream: StreamingRead<ResolvedEvent<E>>): Promise<Entity> => {
         let currentState: Entity | undefined = undefined;
-        for(const event of events) {
+
+        for await (const { event } of eventStream) {
+            if (!event) continue;
             currentState = when(currentState, event);
         }
 
@@ -133,48 +137,93 @@ const getShoppingCart = StreamAggregator<ShoppingCart, ShoppingCartEvent>(
     }
 );
 
-const history: ShoppingCartEvent[] = [
-    <ShoppingCartOpened>{
-        type: 'shopping-cart-opened',
-        data: {
-            shoppingCartId: 'cart-123',
-            clientId: 'client-456',
-            openedAt: new Date(),
-        }
-    },
-    <ProductItemAddedToShoppingCart>{
-        type: 'product-item-added-to-shopping-cart',
-        data: {
-            productItem: {
-                productId: 'product-234',
-                quantity: 12
+const toShoppingCartStreamName = (shoppingCartId: string): string =>
+    `shopping_cart-${shoppingCartId}`;
+
+// RUN
+
+const enum ProductIds {
+    T_SHIRT = 't-shirt-123',
+    SHOES = 'shoes-87',
+};
+
+(async () => {
+    const clientId = 'client-54987';
+    const shoppingCartId = `cart-${uuid()}`;
+
+    const history: ShoppingCartEvent[] = [
+        <ShoppingCartOpened>{
+            type: 'shopping-cart-opened',
+            data: {
+                shoppingCartId,
+                clientId: 'client-456',
+                openedAt: new Date().toJSON(),
             }
-        }
-    },
-    <ProductItemAddedToShoppingCart>{
-        type: 'product-item-added-to-shopping-cart',
-        data: {
-            productItem: {
-                productId: 'product-234',
-                quantity: 8
+        },
+        <ProductItemAddedToShoppingCart>{
+            type: 'product-item-added-to-shopping-cart',
+            data: {
+                shoppingCartId,
+                productItem: {
+                    productId: ProductIds.T_SHIRT,
+                    quantity: 12
+                }
             }
-        }
-    },
-    <ProductItemRemovedFromShoppingCart>{
-        type: 'product-item-removed-from-shopping-cart',
-        data: {
-            productItem: {
-                productId: 'product-234',
-                quantity: 2
+        },
+        <ProductItemAddedToShoppingCart>{
+            type: 'product-item-added-to-shopping-cart',
+            data: {
+                shoppingCartId,
+                productItem: {
+                    productId: ProductIds.T_SHIRT,
+                    quantity: 8
+                }
             }
-        }
-    },
-    <ShoppingCartConfirmed>{
-        type: 'shopping-cart-confirmed',
-        data: {
-            confirmedAt: new Date()
-        }
-    },
-];
-const cart = getShoppingCart(history);
-console.log(cart);
+        },
+        <ProductItemAddedToShoppingCart>{
+            type: 'product-item-added-to-shopping-cart',
+            data: {
+                shoppingCartId,
+                productItem: {
+                    productId: ProductIds.SHOES,
+                    quantity: 1
+                }
+            }
+        },
+        <ProductItemRemovedFromShoppingCart>{
+            type: 'product-item-removed-from-shopping-cart',
+            data: {
+                shoppingCartId,
+                productItem: {
+                    productId: ProductIds.T_SHIRT,
+                    quantity: 2
+                }
+            }
+        },
+        <ShoppingCartConfirmed>{
+            type: 'shopping-cart-confirmed',
+            data: {
+                shoppingCartId,
+                confirmedAt: new Date().toJSON(),
+            }
+        },
+    ];
+
+    const streamName = toShoppingCartStreamName(shoppingCartId);
+
+    const eventStore = EventStoreDBClient.connectionString(
+        'esdb://eventstore:2113?tls=false'
+    );
+
+    await eventStore.appendToStream(
+        streamName,
+        history.map((e) => jsonEvent<ShoppingCartEvent>(e))
+    );
+
+    const shoppingCartStream =
+        eventStore.readStream<ShoppingCartEvent>(streamName);
+
+    const cart = await getShoppingCart(shoppingCartStream);
+
+    console.log(cart);
+})();

@@ -6,7 +6,7 @@ export type ShoppingCartOpened = JSONEventType<
     Readonly<{
         shoppingCartId: string;
         clientId: string;
-        openedAt: Date;
+        openedAt: string;
     }>
 >;
 
@@ -30,7 +30,7 @@ export type ShoppingCartConfirmed = JSONEventType<
     'shopping-cart-confirmed',
     Readonly<{
         shoppingCartId: string;
-        confirmedAt: Date;
+        confirmedAt: string;
     }>
 >;
 
