@@ -1,5 +1,5 @@
 import {JSONEventType} from "@eventstore/db-client";
-import {ProductItem} from "./entity";
+import {ProductItem} from "./entity/shopping-cart";
 
 export type ShoppingCartOpened = JSONEventType<
     'shopping-cart-opened',
