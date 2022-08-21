@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "test": "jest"
   },
   "author": "Gildas Quéméner <gildas.quemener@gmail.com>",
   "license": "MIT",
@@ -14,6 +15,8 @@
     "uuid": "^8.3.2"
   },
   "devDependencies": {
-    "@types/uuid": "^8.3.4"
+    "@types/jest": "^28.1.7",
+    "@types/uuid": "^8.3.4",
+    "ts-jest": "^28.0.8"
   }
 }

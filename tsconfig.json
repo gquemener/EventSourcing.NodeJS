@@ -1,4 +1,5 @@
 {
+  "exclude": ["./tests"],
   "compilerOptions": {
     "target": "es2016",
     "module": "commonjs",
