@@ -1,11 +1,9 @@
-import express, {NextFunction} from "express";
+import express, {NextFunction, Request, Response} from "express";
 import {v4 as uuid} from "uuid";
 import {create, getEventStore, toShoppingCartStreamName} from "./eventstore";
 import Clock from "./commands/clock";
 import {openShoppingCart} from "./commands/open-shopping-cart";
 
-const app = express();
-const port = 3000;
 
 type WeakETag = `W/${string}`;
 const toWeakETag = (value: any): WeakETag => {
@@ -19,9 +17,13 @@ const assertNotEmptyString = (value: string): string => {
     return value;
 }
 
+const app = express();
+const port = 3000;
+
 app.post(
     '/clients/:clientId/shopping-carts',
-    async (request, response) => {
+    async (request: Request, response: Response, next: NextFunction) => {
+        try {
         const shoppingCartId = uuid();
         const streamName = toShoppingCartStreamName(shoppingCartId);
 
@@ -41,10 +43,22 @@ app.post(
         );
 
         response.set('ETag', toWeakETag(result.nextExpectedRevision));
-        response.status(201).send(shoppingCartId);
+        response.set('Location', `${request.url}/${shoppingCartId}`)
+        response.status(201).json({id: shoppingCartId});
+        } catch (error) {
+            next(error);
+        }
     }
 );
 
-app.listen(port, '0.0.0.0', () => {
+const server = app.listen(port, '0.0.0.0', () => {
     console.log(`EventSourcing app listening on port ${port}`);
 });
+
+const shutdown = () => {
+    console.log('Good bye...')
+    server.close();
+    process.exit(0);
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
