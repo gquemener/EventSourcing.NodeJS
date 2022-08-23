@@ -1,24 +1,17 @@
 import express, {NextFunction, Request, Response} from "express";
 import {v4 as uuid} from "uuid";
-import {create, getEventStore, toShoppingCartStreamName} from "./eventstore";
+import {create, getEventStore, toShoppingCartStreamName, update} from "./eventstore";
 import Clock from "./commands/clock";
 import {openShoppingCart} from "./commands/open-shopping-cart";
-
-
-type WeakETag = `W/${string}`;
-const toWeakETag = (value: any): WeakETag => {
-  return `W/"${value}"`;
-};
-
-const assertNotEmptyString = (value: string): string => {
-    if(!value)
-        throw new Error('String is empty');
-
-    return value;
-}
+import {assertNotEmptyString, assertPositiveNumber} from "./core/validation";
+import {getExpectedRevisionFromETag, sendCreated, toWeakETag} from "./core/http";
+import {addProductItemToShoppingCart} from "./commands/add-product-item-to-shopping-cart";
+import bodyParser from "body-parser";
 
 const app = express();
+app.use(bodyParser.json());
 const port = 3000;
+const eventstoreDns = 'esdb://eventstore:2113?tls=false';
 
 app.post(
     '/clients/:clientId/shopping-carts',
@@ -31,7 +24,7 @@ app.post(
             now: (): string => new Date().toJSON()
         }
         const result = await create(
-            getEventStore('esdb://eventstore:2113?tls=false'),
+            getEventStore(eventstoreDns),
             openShoppingCart(clock)
         )
         (
@@ -43,8 +36,41 @@ app.post(
         );
 
         response.set('ETag', toWeakETag(result.nextExpectedRevision));
-        response.set('Location', `${request.url}/${shoppingCartId}`)
-        response.status(201).json({id: shoppingCartId});
+        sendCreated(response, shoppingCartId);
+        } catch (error) {
+            next(error);
+        }
+    }
+);
+
+app.post(
+    '/clients/:clientId/shopping-carts/:shoppingCartId/product-items',
+    async (request: Request, response: Response, next: NextFunction) => {
+        try {
+            const shoppingCartId = assertNotEmptyString(
+                request.params.shoppingCartId
+            );
+            const streamName = toShoppingCartStreamName(shoppingCartId);
+            const expectedRevision = getExpectedRevisionFromETag(request);
+
+            const result = await update(
+                getEventStore(eventstoreDns),
+                addProductItemToShoppingCart
+            )
+            (
+                streamName,
+                {
+                    shoppingCartId,
+                    productItem: {
+                        productId: assertNotEmptyString(request.body.productId),
+                        quantity: assertPositiveNumber(request.body.quantity)
+                    }
+                },
+                expectedRevision
+            );
+
+            response.set('ETag', toWeakETag(result.nextExpectedRevision));
+            response.status(204).send();
         } catch (error) {
             next(error);
         }

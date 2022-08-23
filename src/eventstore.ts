@@ -29,7 +29,7 @@ export const create =
     };
 
 
-const update =
+export const update =
     <Command, StreamEvent extends JSONEventType>(
         eventStore: EventStoreDBClient,
         handle: (
