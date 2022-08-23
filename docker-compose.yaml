@@ -4,9 +4,12 @@ services:
   node:
     image: node:lts-alpine
     working_dir: /app
+    ports:
+      - '3000:3000'
     volumes:
         - '.:/app'
     user: '${UID:-1000}:${GID:-1000}'
+    command: 'node build/app.js'
 
   eventstore:
     image: 'eventstore/eventstore:21.10.1-buster-slim'

@@ -9,16 +9,13 @@ export const getEventStore = (connectionString: string) => {
         );
     }
 
-    return {
-        readStream: <E extends EventType>(category: string, aggregateId: string): StreamingRead<ResolvedEvent<E>> => {
-            const streamName = `${category}-${aggregateId}`;
-
-            return eventStore.readStream(streamName);
-        }
-    };
+    return eventStore;
 };
 
-const create =
+export const toShoppingCartStreamName =
+    (shoppingCartId: string): string => `cart-${shoppingCartId}`;
+
+export const create =
     <Command, StreamEvent extends JSONEventType>(
         eventStore: EventStoreDBClient,
         handle: (command: Command) => StreamEvent
