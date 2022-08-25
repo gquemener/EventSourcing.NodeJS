@@ -8,11 +8,15 @@ import bodyParser from "body-parser";
 import {openShoppingCart} from "./commands/open-shopping-cart";
 import {addProductItemToShoppingCart} from "./commands/add-product-item-to-shopping-cart";
 import {removeProductItemFromShoppingCart} from "./commands/remove-product-item-from-shopping-cart";
+import {confirmShoppingCart} from "./commands/confirm-shopping-cart";
 
 const app = express();
 app.use(bodyParser.json());
 const port = 3000;
 const eventstoreDns = 'esdb://eventstore:2113?tls=false';
+const clock: Clock = {
+    now: (): string => new Date().toJSON()
+};
 
 app.post(
     '/clients/:clientId/shopping-carts',
@@ -21,9 +25,6 @@ app.post(
         const shoppingCartId = uuid();
         const streamName = toShoppingCartStreamName(shoppingCartId);
 
-        const clock: Clock = {
-            now: (): string => new Date().toJSON()
-        }
         const result = await create(
             getEventStore(eventstoreDns),
             openShoppingCart(clock)
@@ -111,6 +112,36 @@ app.delete(
         }
     }
 );
+
+app.put(
+    '/clients/:clientId/shopping-carts/:shoppingCartId',
+    async (request: Request, response: Response, next: NextFunction) => {
+        try {
+            const shoppingCartId = assertNotEmptyString(
+                request.params.shoppingCartId
+            );
+            const streamName = toShoppingCartStreamName(shoppingCartId);
+            const expectedRevision = getExpectedRevisionFromETag(request);
+
+            const result = await update(
+                getEventStore(eventstoreDns),
+                confirmShoppingCart(clock)
+            )
+            (
+                streamName,
+                {
+                    shoppingCartId,
+                },
+                expectedRevision
+            );
+
+            response.set('ETag', toWeakETag(result.nextExpectedRevision));
+            response.status(204).send();
+        } catch (error) {
+            next(error);
+        }
+    }
+)
 
 const server = app.listen(port, '0.0.0.0', () => {
     console.log(`EventSourcing app listening on port ${port}`);
