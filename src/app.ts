@@ -9,6 +9,8 @@ import {openShoppingCart} from "./commands/open-shopping-cart";
 import {addProductItemToShoppingCart} from "./commands/add-product-item-to-shopping-cart";
 import {removeProductItemFromShoppingCart} from "./commands/remove-product-item-from-shopping-cart";
 import {confirmShoppingCart} from "./commands/confirm-shopping-cart";
+import {ShoppingCartErrors} from "./entity/shopping-cart";
+import {WrongExpectedVersionError} from "@eventstore/db-client";
 
 const app = express();
 app.use(bodyParser.json());
@@ -142,6 +144,30 @@ app.put(
         }
     }
 )
+
+const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
+    if (res.headersSent) {
+        return next(err);
+    }
+
+    if (Object.values(ShoppingCartErrors).includes(err)) {
+        res
+            .status(400)
+            .setHeader('Content-Type', 'application/problem+json')
+            .send({ type: err });
+    }
+
+    if (err instanceof WrongExpectedVersionError) {
+        res
+            .status(400)
+            .setHeader('Content-Type', 'application/problem+json')
+            .send({ type: 'WRONG_EXPECTED_VERSION' });
+    }
+
+    console.log()
+    next(err);
+};
+app.use(errorHandler)
 
 const server = app.listen(port, '0.0.0.0', () => {
     console.log(`EventSourcing app listening on port ${port}`);
