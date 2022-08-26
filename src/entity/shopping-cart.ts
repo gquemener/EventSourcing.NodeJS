@@ -31,7 +31,7 @@ export enum ShoppingCartErrors {
     SHOPPING_CART_IS_CLOSED = "SHOPPING_CART_IS_CLOSED",
 };
 
-const addProductItem = (
+export const addProductItem = (
     productItems: ProductItem[],
     newProductItem: ProductItem
 ): ProductItem[] => {
@@ -49,7 +49,7 @@ const addProductItem = (
     });
 };
 
-const removeProductItem = (
+export const removeProductItem = (
     productItems: ProductItem[],
     productItem: ProductItem
 ): ProductItem[] => {

@@ -11,6 +11,7 @@ import {removeProductItemFromShoppingCart} from "./commands/remove-product-item-
 import {confirmShoppingCart} from "./commands/confirm-shopping-cart";
 import {ShoppingCartErrors} from "./entity/shopping-cart";
 import {WrongExpectedVersionError} from "@eventstore/db-client";
+import {getShoppingCartsCollection, runProjection} from "./read-model/shopping-cart";
 
 const app = express();
 app.use(bodyParser.json());
@@ -143,6 +144,29 @@ app.put(
             next(error);
         }
     }
+);
+
+app.get(
+    '/clients/:clientId/shopping-carts/:shoppingCartId',
+    async (request: Request, response: Response, next: NextFunction) => {
+        try {
+            const collection = await getShoppingCartsCollection();
+
+            const result = await collection.findOne({
+                shoppingCartId: assertNotEmptyString(request.params.shoppingCartId)
+            });
+
+            if (result === null) {
+                response.sendStatus(404);
+                return;
+            }
+
+            response.set('ETag', toWeakETag(result.revision));
+            response.send(result);
+        } catch (error) {
+            next(error);
+        }
+    }
 )
 
 const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
@@ -164,8 +188,7 @@ const errorHandler = (err: any, req: Request, res: Response, next: NextFunction)
             .send({ type: 'WRONG_EXPECTED_VERSION' });
     }
 
-    console.log()
-    next(err);
+    return next(err);
 };
 app.use(errorHandler)
 
@@ -180,3 +203,8 @@ const shutdown = () => {
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+
+(async () => {
+    console.log('Running projection...');
+    await runProjection();
+})();

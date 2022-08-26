@@ -33,6 +33,17 @@ services:
         source: eventstore-volume-logs
         target: /var/log/eventstore
 
+  mongodb:
+    image: mongo:5.0
+    # environment:
+    #     MONGO_INITDB_ROOT_USERNAME: root
+    #     MONGO_INITDB_ROOT_PASSWORD: rootpassword
+    ports:
+      - 27017:27017
+    volumes:
+      - mongodb-data:/data/db
+
 volumes:
   eventstore-volume-data:
   eventstore-volume-logs:
+  mongodb-data:
